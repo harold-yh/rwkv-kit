@@ -60,7 +60,8 @@ class RWKV_Block(JITMODULE):
         self.att_time_decay_w2 = nn.Parameter(block_w["att.time_decay_w2"])
         self.att_time_faaaa = nn.Parameter(block_w["att.time_faaaa"])
         self.att_receptance = nn.Linear(self.n_embd, self.n_embd, bias=False)
-        self.att_receptance.weight = nn.Parameter(block_w["att.receptance.weight"])
+        self.att_receptance.weight = nn.Parameter(
+            block_w["att.receptance.weight"])
         self.att_key = nn.Linear(self.n_embd, self.n_embd, bias=False)
         self.att_key.weight = nn.Parameter(block_w["att.key.weight"])
         self.att_value = nn.Linear(self.n_embd, self.n_embd, bias=False)
@@ -82,7 +83,8 @@ class RWKV_Block(JITMODULE):
         self.ffn_key = nn.Linear(self.n_embd, self.n_embd, bias=False)
         self.ffn_key.weight = nn.Parameter(block_w["ffn.key.weight"])
         self.ffn_receptance = nn.Linear(self.n_embd, self.n_embd, bias=False)
-        self.ffn_receptance.weight = nn.Parameter(block_w["ffn.receptance.weight"])
+        self.ffn_receptance.weight = nn.Parameter(
+            block_w["ffn.receptance.weight"])
         self.ffn_value = nn.Linear(self.n_embd, self.n_embd, bias=False)
         self.ffn_value.weight = nn.Parameter(block_w["ffn.value.weight"])
 
@@ -161,7 +163,8 @@ class RWKV_Block(JITMODULE):
             torch.Tensor: 混合后的时间状态张量，形状与输入的state相同。
         """
         batch_size, H, S = x.size(0), self.n_head, self.head_size
-        r, w, k, v, g, state = self.time_mixing_jit(x, state, i, batch_size, H, S)
+        r, w, k, v, g, state = self.time_mixing_jit(
+            x, state, i, batch_size, H, S)
         x, state = self.apply_time_mixxing_kernel(
             r,
             w,
@@ -289,7 +292,8 @@ class RWKV_Block(JITMODULE):
 
         xxx = x + sx_lerp * self.att_time_maa_x  # torch.Size([B, L, n_embd])
         # att_time_maa_w1: [n_embd, 160]
-        xxx = torch.tanh(xxx @ self.att_time_maa_w1).view(batch_size, L, 5, 1, -1)
+        xxx = torch.tanh(
+            xxx @ self.att_time_maa_w1).view(batch_size, L, 5, 1, -1)
         xxx = torch.matmul(xxx, self.att_time_maa_w2).view(
             batch_size, L, 5, -1
         )  # [Batch, L, 5, n_embd]
@@ -364,7 +368,8 @@ class RWKV_Block(JITMODULE):
                 x (torch.Tensor): Output tensor
                 state (torch.Tensor): Updated state tensor
         """
-        s = state[:, (2 + S) * i + 2 : (2 + S) * (i + 1)].view(batch_size, H, S, S)
+        s = state[:, (2 + S) * i + 2: (2 + S) * (i + 1)
+                  ].view(batch_size, H, S, S)
         # we dont want to support cuda, since it is only supported by nvidia
         # and AMD
         if backend != "torch":
@@ -389,7 +394,7 @@ class RWKV_Block(JITMODULE):
                 training=training,
             )
             x = o.permute(0, 2, 1, 3).reshape(B, L, H * S)
-            state[:, (2 + S) * i + 2 : (2 + S) * (i + 1)] = state_layer.view(
+            state[:, (2 + S) * i + 2: (2 + S) * (i + 1)] = state_layer.view(
                 batch_size, S, -1
             )
 
@@ -397,7 +402,7 @@ class RWKV_Block(JITMODULE):
             x, state_layer = self.native_torch_time_mixing_kernel(
                 r, w.unsqueeze(-1), k, v, s, batch_size, L, H, S, scale=self.scale
             )
-            state[:, (2 + S) * i + 2 : (2 + S) * (i + 1)] = state_layer.view(
+            state[:, (2 + S) * i + 2: (2 + S) * (i + 1)] = state_layer.view(
                 batch_size, S, -1
             )
         return x, state
@@ -587,7 +592,7 @@ class RWKV6(JITMODULE):
         for i in range(self.num_layer):
             # 提取当前块的权重
             block_w = {
-                k[len(f"blocks.{i}.") :]: v for k, v in w.items() if f"blocks.{i}." in k
+                k[len(f"blocks.{i}."):]: v for k, v in w.items() if f"blocks.{i}." in k
             }
             self.blocks.append(
                 RWKV_Block(
@@ -604,7 +609,7 @@ class RWKV6(JITMODULE):
 
     @torch.no_grad
     def forward(
-        self, token: torch.Tensor, state: Optional[torch.Tensor] = None
+        self, token: torch.Tensor, state: Optional[torch.Tensor] = None, full_output: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if state is None:
             state = self.init_state(token.size(0))
@@ -612,12 +617,12 @@ class RWKV6(JITMODULE):
             out, state = self.forward_autoregressive(token, state)
         elif self.config.chunk_size == 0:
             out, state = self.forward_prefill(token, state)
-            out = out[:, -1]
+            out = out[:, -1] if not full_output else out
         else:
             out, state = self.forward_prefill_chunks(
                 token, state, self.config.chunk_size
             )
-            out = out[:, -1]
+            out = out[:, -1] if not full_output else out
         return out, state
 
     @torch.no_grad
@@ -674,7 +679,8 @@ class RWKV6(JITMODULE):
         stop=["\n\nUser", "<|endoftext|>"],
     ) -> Union[str, Generator[str, None, None]]:
         state = self.init_state(1)
-        end_tensor = torch.tensor(end_id, dtype=torch.long, device=self.config.device)
+        end_tensor = torch.tensor(
+            end_id, dtype=torch.long, device=self.config.device)
         token = torch.tensor(
             self.tokenizer.encode([prompt]), dtype=torch.long, device=self.config.device
         )
@@ -693,14 +699,16 @@ class RWKV6(JITMODULE):
         if stream:
 
             def stream_generator():
-                temp = self.tokenizer.decode(token.unsqueeze(1).cpu().tolist())[0]
+                temp = self.tokenizer.decode(
+                    token.unsqueeze(1).cpu().tolist())[0]
                 generated_text = str(temp)
                 yield temp
                 for t in token_generator(token, state):
-                    temp = self.tokenizer.decode(t.unsqueeze(1).cpu().tolist())[0]
+                    temp = self.tokenizer.decode(
+                        t.unsqueeze(1).cpu().tolist())[0]
                     generated_text += temp
                     for s in stop:
-                        if s == generated_text[-len(s) :]:
+                        if s == generated_text[-len(s):]:
                             return
                     yield temp
 
@@ -825,7 +833,7 @@ class RWKV6(JITMODULE):
             )
             head_size = self.head_size
             for i, (key, value) in enumerate(STATE.items()):
-                state[:, ((2 + head_size) * i + 2) : ((2 + head_size) * (i + 1)), :] = (
+                state[:, ((2 + head_size) * i + 2): ((2 + head_size) * (i + 1)), :] = (
                     value.contiguous().permute(0, 2, 1).reshape(head_size, -1)
                 )
 

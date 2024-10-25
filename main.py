@@ -1,7 +1,4 @@
-import time
-import os
-import torch
-from rwkvkit import RWKVConfig, rwkv6, sample_logits
+from rwkvkit import rwkv6
 
 if __name__ == '__main__':
     # 加载模型和分词器

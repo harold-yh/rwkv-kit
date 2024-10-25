@@ -10,7 +10,8 @@ def rwkv6(
     chunk_size: int = 0,
     state_path: Optional[str] = "",
     data_format: Optional[Literal['fp32', 'fp16', 'bf16']] = 'bf16',
-    prefill_kernel: Literal['torch', 'triton', 'triton-chunk', 'torch-manual'] = 'torch',
+    prefill_kernel: Literal['torch', 'triton',
+                            'triton-chunk', 'torch-manual'] = 'torch',
     init_model: Optional[bool] = False,
     use_jit: Optional[bool] = True,
     n_embd: Optional[int] = 2048,
@@ -59,7 +60,23 @@ def rwkv6(
         head_size_divisor=head_size_divisor,
         vocab_file=vocab_file
     )
+    config = _check_bf16_support(config)
     from rwkvkit.utils.rwkv6 import RWKV6
     if compile:
         return torch.compile(RWKV6(config=config), fullgraph=True)
     return RWKV6(config=config)
+
+
+def _check_bf16_support(config: RWKVConfig):
+    """
+    Check if the current environment supports BF16 data format.
+    """
+    device = config.device
+
+    if ((not getattr(torch, device).is_bf16_supported() or (device == 'cuda' 
+          and torch.cuda.get_device_capability(0)[0] < 8)) and config.data_format == 'bf16'):
+        config.data_format = 'fp16'
+        print(
+            f"BF16 data format is not supported on {device}. Switching to FP16")
+
+    return config

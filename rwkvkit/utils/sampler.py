@@ -44,8 +44,8 @@ def _sample_logits_as_single(
         torch.tensor(top_p, device=cumulative_log_probs.device))
 
     # Set the probabilities of tokens to remove to a very small value (e.g.,
-    # -1e10)
-    log_probabilities = log_probabilities.masked_fill(mask_remove, -1e10)
+    # -1e4)
+    log_probabilities = log_probabilities.masked_fill(mask_remove, -1e4)
 
     # Generate a single sample
     sampled_index = torch.multinomial(
@@ -110,6 +110,7 @@ def _sample_logits_as_batch(
     return sampled_indices
 
 
+@torch.no_grad
 def sample_logits(
         out: torch.Tensor,
         temperature: float | torch.Tensor = 1.0,
@@ -150,7 +151,7 @@ def sample_logits(
         return _sample_logits_as_batch(
             out, temperature, top_p, sampled_indices).to(device_o)
 
-
+@torch.no_grad
 def apply_penalties(
     logits: torch.Tensor,
     temperature: float | torch.Tensor,
